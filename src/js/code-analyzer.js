@@ -1,166 +1,176 @@
 import * as esprima from 'esprima';
+import * as escodegen from 'escodegen';
 
+let funcParams=[];
 
 const parseCode = (codeToParse) => {
-    return esprima.parseScript(codeToParse,{loc:true});
+    return esprima.parseScript(codeToParse);
+};
+const subCode = (codeToSub) => {
+    let parsedCode = parseCode(codeToSub);
+    let substitutedCode= substituteProgram(parsedCode,{});
+    return escodegen.generate(substitutedCode);
+};
+const substituteProgram = (codeToSub,env) => {
+    codeToSub.body=subBody(codeToSub.body,env);
+    return codeToSub;
 };
 
-
-const functionMap= {'FunctionDeclaration':(expr) => {return parseFuncDec(expr);},
-    'VariableDeclaration':(expr) => {return parseVarDec(expr);},
-    'ExpressionStatement':(expr) => {return parseExprState(expr);},
-    'WhileStatement':(expr) => {return parseWhileState(expr);},
-    'IfStatement':(expr) => {return parseIfStatement(expr);},
-    'ReturnStatement':(expr) => {return parseReturnStat(expr);},
-    'ForStatement':(expr) => {return parseForStat(expr);},
-    'BlockStatement':(expr) => {return parseBlockStat(expr);},
-    'UpdateExpression':(expr) => {return parseUpdateExpr(expr);},
-    'AssignmentExpression':(expr) => {return parseAssignExpr(expr);},
-};
-
-
-function parseProgram(program){
-    return parseBody(program.body);
-}
-function parseBody(bodyCode){
-    let Lines=[];
+function subBody(bodyCode,env){
     for(let i=0; i<bodyCode.length;i++) {
-        Lines=Lines.concat(parseExpr(bodyCode[i]));
+        if(bodyCode[i].type != 'FunctionDeclaration')
+            bodyCode[i]=subExpr(bodyCode[i],env);
     }
-    return Lines;
-}
-
-function parseExpr(expr){
-    return functionMap[expr.type](expr);
-}
-
-
-
-function parseBlockStat(blockStat){
-    return parseBody(blockStat.body);
-}
-
-
-function parseFuncDec(funcDec){
-    let Lines= [{Line: funcDec.id.loc.start.line, Type: 'function declaration',Name: funcDec.id.name, Condition: '' , Value: ''}].concat(parseParams(funcDec.params));
-    return Lines.concat(parseExpr(funcDec.body));
-}
-function parseParams(funcParams) {
-    let paramLines=[];
-    for(let i=0; i<funcParams.length;i++) {
-        paramLines = paramLines.concat([{Line: funcParams[i].loc.start.line, Type: 'variable declaration' ,Name: funcParams[i].name, Condition:''  , Value:'' }]);
+    for(let i=0; i<bodyCode.length;i++) {
+        if(bodyCode[i].type === 'FunctionDeclaration')
+            bodyCode[i]=subExpr(bodyCode[i],env);
     }
-    return paramLines;
+    bodyCode=bodyCode.filter((expr) => deleteRows(expr));
+    return bodyCode;
 }
-function parseVarDec(varDec) {
-    let varsLines=[];
+
+function subExpr(expr,env){
+    return functionMap[expr.type](expr,env);
+}
+
+const functionMap= {'FunctionDeclaration':(expr,env) => {return subFuncDec(expr,env);},
+    'VariableDeclaration':(expr,env) => {return subVarDec(expr,env);},
+    'ExpressionStatement':(expr,env) => {return subExprState(expr,env);},
+    'WhileStatement':(expr,env) => {return subWhileState(expr,env);},
+    'IfStatement':(expr,env) => {return subIfStatement(expr,env);},
+    'ReturnStatement':(expr,env) => {return subReturnStat(expr,env);},
+    'ForStatement':(expr,env) => {return subForStat(expr,env);},
+    'BlockStatement':(expr,env) => {return subBlockStat(expr,env);},
+    'UpdateExpression':(expr,env) => {return subUpdateExpr(expr,env);},
+    //'AssignmentExpression':(expr,env) => {return subAssignExpr(expr,env);},
+};
+
+function subFuncDec(funcDec,env){
+    for(let i=0;i<funcDec.params.length;i++){
+        funcParams[i]=funcDec.params[i].name;
+        env[funcDec.params[i].name]='';
+    }
+    funcDec.body=subExpr(funcDec.body,env);
+    return funcDec;
+}
+
+
+function deleteRows(expr){
+    if(expr.type === 'VariableDeclaration')
+        return false;
+    if(expr.type === 'ExpressionStatement' && expr.expression.type==='AssignmentExpression') {
+        if(!funcParams.includes(expr.expression.left.name))
+            return false;
+    }
+    return true;
+}
+
+function subBlockStat(blockStat,env){
+    blockStat.body= subBody(blockStat.body,env);
+    return blockStat;
+}
+
+function subVarDec(varDec,env) {
     let decs=varDec.declarations;
     for(let i=0; i<decs.length;i++) {
-        varsLines= varsLines.concat([{Line: decs[i].id.loc.start.line, Type: 'variable declaration',Name: decs[i].id.name, Condition: '' , Value:decs[i].init===null?'NULL':parseCompExpr(decs[i].init) }]);
+        env[decs[i].id.name]= subParseCompExpr(decs[i].init,env);
     }
-    return varsLines;
-}
-function parseExprState(exprState) {
-    switch(exprState.expression.type) {
-    case 'AssignmentExpression': return parseAssignExpr(exprState.expression);
-    case 'UpdateExpression': return parseUpdateExpr(exprState.expression);
-    }
-}
-function parseAssignExpr(assignExpr) {
-    return [{Line:assignExpr.left.loc.start.line , Type:'assignment expression' ,Name: parseCompExpr(assignExpr.left), Condition: '' , Value: parseCompExpr(assignExpr.right)}];
+    return varDec;
 }
 
-
-function parseWhileState(whileState) {
-    let Lines=[];
-    let testString=parseCompExpr(whileState.test.left) +' '+ whileState.test.operator +' '+ parseCompExpr(whileState.test.right);
-    Lines=Lines.concat([{Line: whileState.test.left.loc.start.line, Type:'while statement' ,Name:'' , Condition: testString , Value:''}]);
-    return Lines.concat(parseExpr(whileState.body));
-}
-
-function parseIfStatement(ifState) {
-    let Lines=[];
-    let testString=parseCompExpr(ifState.test.left) + ' '+ ifState.test.operator +' '+ parseCompExpr(ifState.test.right);
-    Lines=Lines.concat([{Line: ifState.test.left.loc.start.line, Type: 'if statement',Name: '', Condition: testString , Value: ''}]);
-    Lines=Lines.concat(parseExpr(ifState.consequent));
+function subIfStatement(ifState,env) {
+    ifState.test.left=parseCode(subParseCompExpr(ifState.test.left,env)).body[0].expression;
+    ifState.test.right=parseCode(subParseCompExpr(ifState.test.right,env)).body[0].expression;
+    let newEnv={};
+    Object.keys(env).forEach(function(key) {
+        newEnv[key] = env[key];
+    });
+    ifState.consequent=subExpr(ifState.consequent,env);
     if(ifState.alternate===null)
-        return Lines;
-    if(ifState.alternate.type === 'IfStatement')
-        return Lines.concat(parseElseIf(ifState.alternate));
-    else
-        return Lines.concat(parseExpr(ifState.alternate));
-}
-function parseElseIf(elseIfState) {
-    let Lines=[];
-    let testString=parseCompExpr(elseIfState.test.left) +' '+ elseIfState.test.operator +' '+ parseCompExpr(elseIfState.test.right);
-    Lines=Lines.concat([{Line: elseIfState.test.left.loc.start.line, Type: 'else if statement',Name: '', Condition: testString , Value:'' }]);
-    Lines=Lines.concat(parseExpr(elseIfState.consequent));
-    if(elseIfState.alternate===null)
-        return Lines;
-    if(elseIfState.alternate.type === 'IfStatement')
-        return Lines.concat(parseElseIf(elseIfState.alternate));
-    else
-        return Lines.concat(parseExpr(elseIfState.alternate));
+        return ifState;
+    ifState.alternate=subExpr(ifState.alternate,newEnv);
+    return ifState;
 }
 
-
-
-function parseCompExpr(compExpr){
-    switch (compExpr.type) {
-    case 'Identifier': return compExpr.name;
-    case 'Literal': return ''+compExpr.value;
-    case 'MemberExpression': return parseCompExpr(compExpr.object) + '[' + parseCompExpr(compExpr.property) + ']';
-    case 'UpdateExpression': return parseCompExpr(compExpr.argument) + ' '+ compExpr.operator+' ';
+function subExprState(exprState,env) {
+    switch(exprState.expression.type) {
+    case 'AssignmentExpression': exprState.expression=subAssignExpr(exprState.expression,env); break;
+    case 'UpdateExpression': exprState.expression=subUpdateExpr(exprState.expression);
     }
-    return parseBinaryOnary(compExpr);
+    return exprState;
 }
-function parseBinaryOnary(compExpr){
+function subAssignExpr(assignExpr,env) {
+    env[assignExpr.left.name]=subParseCompExpr(assignExpr.right,env);
+    assignExpr.right=parseCode(env[assignExpr.left.name]).body[0].expression;
+    return assignExpr;
+}
+
+function subUpdateExpr(updateExpr) {
+    return updateExpr;
+}
+
+
+
+function subReturnStat(returnStat,env) {
+    returnStat.argument=parseCode(subParseCompExpr(returnStat.argument,env)).body[0].expression;
+    return returnStat;
+}
+
+
+
+function subParseCompExpr(compExpr,env){
+    switch (compExpr.type) {
+    case 'Identifier': return (env[compExpr.name]===null || env[compExpr.name]==='')?('('+compExpr.name+')'):('('+env[compExpr.name]+')');
+    case 'Literal': return ''+compExpr.value;
+    // case 'MemberExpression': return subParseCompExpr(compExpr.object,env) + '[' + subParseCompExpr(compExpr.property,env) + ']';
+    // case 'UpdateExpression': return subParseCompExpr(compExpr.argument,env) + ' '+ compExpr.operator+' ';
+    }
+    return subParseBinaryOnary(compExpr,env);
+}
+function subParseBinaryOnary(compExpr,env){
     if(compExpr.type==='BinaryExpression')
-        return parseBinaryExpr(compExpr);
+        return subParseBinaryExpr(compExpr,env);
     else
-        return  parseUnaryExpr(compExpr);
+        return  subParseUnaryExpr(compExpr,env);
 }
-
-
-function parseBinaryExpr(binaryExpr)
+function subParseBinaryExpr(binaryExpr,env)
 {
     let ans ='';
-    ans = ans + parseCompExpr(binaryExpr.left);
+    ans = ans + subParseCompExpr(binaryExpr.left,env);
     if(binaryExpr.left.type==='BinaryExpression' || binaryExpr.left.type==='UnaryExpression')
         ans = '(' + ans + ')';
     ans = ans + ' '+binaryExpr.operator+' ';
     if(binaryExpr.right.type==='BinaryExpression' || binaryExpr.right.type==='UnaryExpression')
-        ans = ans + '(' + parseCompExpr(binaryExpr.right) + ')';
+        ans = ans + '(' + subParseCompExpr(binaryExpr.right,env) + ')';
     else
-        ans = ans + parseCompExpr(binaryExpr.right);
+        ans = ans + subParseCompExpr(binaryExpr.right,env);
     return ans;
 }
-function parseUnaryExpr(unaryExpr)
+function subParseUnaryExpr(unaryExpr,env)
 {
     if(unaryExpr.argument.type==='BinaryExpression' || unaryExpr.argument.type==='UnaryExpression')
-        return unaryExpr.operator + '(' + parseCompExpr(unaryExpr.argument) + ')';
+        return unaryExpr.operator + '(' + subParseCompExpr(unaryExpr.argument,env) + ')';
     else
-        return unaryExpr.operator + parseCompExpr(unaryExpr.argument);
-}
-function parseReturnStat(returnStat) {
-    return [{Line:returnStat.loc.start.line, Type: 'return statement',Name:'' , Condition: '' , Value: parseCompExpr(returnStat.argument)}];
+        return unaryExpr.operator + subParseCompExpr(unaryExpr.argument,env);
 }
 
-function parseForStat(forState) {
-    let Lines=[];
-    let testString=parseCompExpr(forState.test.left) + ' ' +forState.test.operator +' '+ parseCompExpr(forState.test.right);
-    Lines=Lines.concat([{Line: forState.test.left.loc.start.line, Type:'for statement' ,Name:'' , Condition: testString , Value:''}]);
-    Lines=Lines.concat(parseExpr(forState.init));
-    Lines=Lines.concat(parseExpr(forState.update));
-    return Lines.concat(parseExpr(forState.body));
+
+function subWhileState(whileState,env) {
+    whileState.test=parseCode(subParseCompExpr(whileState.test,env)).body[0].expression;
+    whileState.body=subExpr(whileState.body,env);
+    return whileState;
 }
 
-function parseUpdateExpr(assignExpr) {
-    let name=parseCompExpr(assignExpr.argument);
-    return [{Line:assignExpr.loc.start.line , Type:'update expression' ,Name: name, Condition: '' , Value: name + assignExpr.operator}];
+function subForStat(forState,env) {
+    forState.init=subExpr(forState.init,env);
+    forState.test=parseCode(subParseCompExpr(forState.test,env)).body[0].expression;
+    forState.update=subExpr(forState.update,env);
+    forState.body=subExpr(forState.body,env);
+    return forState;
 }
+
 
 export {parseCode};
-export {parseProgram};
-
-
+export {substituteProgram};
+export {subParseCompExpr};
+export {subCode};
