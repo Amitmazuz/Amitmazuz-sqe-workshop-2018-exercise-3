@@ -26,7 +26,7 @@ $(document).ready(function () {
 });
 
 const takeParams = () => {
-    let assignments = $('#paramsPlaceHolder').val().slice(1,-1).split(',');
+    let assignments = $('#paramsPlaceHolder').val().slice(1,-1).split(';');
     let paramsEnv={};
     for (let i=0;i<assignments.length;i++) {
         let param = assignments[i].split('=');

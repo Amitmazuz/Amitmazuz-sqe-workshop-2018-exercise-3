@@ -122,7 +122,7 @@ function subParseCompExpr(compExpr,env){
     switch (compExpr.type) {
     case 'Identifier': return (env[compExpr.name]===null || env[compExpr.name]==='')?('('+compExpr.name+')'):('('+env[compExpr.name]+')');
     case 'Literal': return ''+compExpr.value;
-    // case 'MemberExpression': return subParseCompExpr(compExpr.object,env) + '[' + subParseCompExpr(compExpr.property,env) + ']';
+    case 'MemberExpression': return subParseCompExpr(compExpr.object,env) + '[' + subParseCompExpr(compExpr.property,env) + ']';
     // case 'UpdateExpression': return subParseCompExpr(compExpr.argument,env) + ' '+ compExpr.operator+' ';
     }
     return subParseBinaryOnary(compExpr,env);
