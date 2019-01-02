@@ -1,15 +1,14 @@
 import * as esprima from 'esprima';
-import * as escodegen from 'escodegen';
 
 let funcParams=[];
 
 const parseCode = (codeToParse) => {
-    return esprima.parseScript(codeToParse);
+    return esprima.parseScript(codeToParse,{range: true});
 };
 const subCode = (codeToSub) => {
     let parsedCode = parseCode(codeToSub);
     let substitutedCode= substituteProgram(parsedCode,{});
-    return escodegen.generate(substitutedCode);
+    return substitutedCode;
 };
 const substituteProgram = (codeToSub,env) => {
     codeToSub.body=subBody(codeToSub.body,env);
@@ -25,7 +24,7 @@ function subBody(bodyCode,env){
         if(bodyCode[i].type === 'FunctionDeclaration')
             bodyCode[i]=subExpr(bodyCode[i],env);
     }
-    bodyCode=bodyCode.filter((expr) => deleteRows(expr));
+    //bodyCode=bodyCode.filter((expr) => deleteRows(expr));
     return bodyCode;
 }
 
@@ -55,15 +54,15 @@ function subFuncDec(funcDec,env){
 }
 
 
-function deleteRows(expr){
-    if(expr.type === 'VariableDeclaration')
-        return false;
-    if(expr.type === 'ExpressionStatement' && expr.expression.type==='AssignmentExpression') {
-        if(!funcParams.includes(expr.expression.left.name))
-            return false;
-    }
-    return true;
-}
+// function deleteRows(expr){
+//     if(expr.type === 'VariableDeclaration')
+//         return false;
+//     if(expr.type === 'ExpressionStatement' && expr.expression.type==='AssignmentExpression') {
+//         if(!funcParams.includes(expr.expression.left.name))
+//             return false;
+//     }
+//     return true;
+// }
 
 function subBlockStat(blockStat,env){
     blockStat.body= subBody(blockStat.body,env);
@@ -122,11 +121,19 @@ function subParseCompExpr(compExpr,env){
     switch (compExpr.type) {
     case 'Identifier': return (env[compExpr.name]===null || env[compExpr.name]==='')?('('+compExpr.name+')'):('('+env[compExpr.name]+')');
     case 'Literal': return ''+compExpr.value;
-    case 'MemberExpression': return subParseCompExpr(compExpr.object,env) + '[' + subParseCompExpr(compExpr.property,env) + ']';
-    // case 'UpdateExpression': return subParseCompExpr(compExpr.argument,env) + ' '+ compExpr.operator+' ';
     }
-    return subParseBinaryOnary(compExpr,env);
+    return subParseCompExprContinue(compExpr,env);
 }
+
+function subParseCompExprContinue(compExpr,env){
+    if(compExpr.type === 'MemberExpression') {
+        return subParseCompExpr(compExpr.object,env) + '[' + subParseCompExpr(compExpr.property,env) + ']';
+    }else{
+        return subParseBinaryOnary(compExpr,env);
+    }
+}
+
+
 function subParseBinaryOnary(compExpr,env){
     if(compExpr.type==='BinaryExpression')
         return subParseBinaryExpr(compExpr,env);
@@ -156,14 +163,16 @@ function subParseUnaryExpr(unaryExpr,env)
 
 
 function subWhileState(whileState,env) {
-    whileState.test=parseCode(subParseCompExpr(whileState.test,env)).body[0].expression;
+    whileState.test.left=parseCode(subParseCompExpr(whileState.test.left,env)).body[0].expression;
+    whileState.test.right=parseCode(subParseCompExpr(whileState.test.right,env)).body[0].expression;
     whileState.body=subExpr(whileState.body,env);
     return whileState;
 }
 
 function subForStat(forState,env) {
     forState.init=subExpr(forState.init,env);
-    forState.test=parseCode(subParseCompExpr(forState.test,env)).body[0].expression;
+    forState.test.left=parseCode(subParseCompExpr(forState.test.left,env)).body[0].expression;
+    forState.test.right=parseCode(subParseCompExpr(forState.test.right,env)).body[0].expression;
     forState.update=subExpr(forState.update,env);
     forState.body=subExpr(forState.body,env);
     return forState;
