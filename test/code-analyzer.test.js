@@ -1,8 +1,192 @@
 import assert from 'assert';
-import {subCode} from '../src/js/code-analyzer';
+import {subCode,genreateGraphDotFromInput} from '../src/js/code-analyzer';
 import * as escodegen from 'escodegen';
 
 describe('The javascript parser', () => {
+    it('is parsing an empty function correctly', () => {
+        assert.equal(genreateGraphDotFromInput('function foo(x, y, z){\n' +
+            '    let a = x + 1;\n' +
+            '    let b = a + y;\n' +
+            '    let c = 0;\n' +
+            '    \n' +
+            '    if (b < z) {\n' +
+            '        c = c + 5;\n' +
+            '    } else if (b < z * 2) {\n' +
+            '        c = c + x + 5;\n' +
+            '    } else {\n' +
+            '        c = c + z + 5;\n' +
+            '    }\n' +
+            '    \n' +
+            '    return c;\n' +
+            '}\n',''), 'digraph{n0 [shape="square"label="*1*\n' +
+            'let a = x + 1;"]\n' +
+            'n1 [shape="square"label="*2*\n' +
+            'let b = a + y;"]\n' +
+            'n2 [shape="square"label="*3*\n' +
+            'let c = 0;"]\n' +
+            'n3 [shape="diamond"label="*4*\n' +
+            'b < z"]\n' +
+            'n4 [shape="square"label="*5*\n' +
+            'c = c + 5"]\n' +
+            'n5 [shape="square"label="*6*\n' +
+            'return c;"]\n' +
+            'n6 [shape="diamond"label="*7*\n' +
+            'b < z * 2"]\n' +
+            'n7 [shape="square"label="*8*\n' +
+            'c = c + x + 5"]\n' +
+            'n8 [shape="square"label="*9*\n' +
+            'c = c + z + 5"]\n' +
+            'n0 -> n1 []\n' +
+            'n1 -> n2 []\n' +
+            'n2 -> n3 []\n' +
+            'n3 -> n4 [label="T"]\n' +
+            'n3 -> n6 [label="F"]\n' +
+            'n4 -> n5 []\n' +
+            'n6 -> n7 [label="T"]\n' +
+            'n6 -> n8 [label="F"]\n' +
+            'n7 -> n5 []\n' +
+            'n8 -> n5 []\n' +
+            '}'
+        );
+    });
+
+
+    it('is parsing an empty function correctly', () => {
+        assert.equal(genreateGraphDotFromInput('function foo(x, y, z){\n' +
+            '    let a = x + 1;\n' +
+            '    let b = a + y;\n' +
+            '    let c = 0;\n' +
+            '    \n' +
+            '    if (b < z) {\n' +
+            '        c = c + 5;\n' +
+            '    } else if (b < z * 2) {\n' +
+            '        c = c + x + 5;\n' +
+            '    } else {\n' +
+            '        c = c + z + 5;\n' +
+            '    }\n' +
+            '    \n' +
+            '    return c;\n' +
+            '}\n','{x=1;y=2;z=3}'), 'digraph{n0 [style="filled", color= "green",shape="square"label="*1*\n' +
+            'let a = x + 1;"]\n' +
+            'n1 [style="filled", color= "green",shape="square"label="*2*\n' +
+            'let b = a + y;"]\n' +
+            'n2 [style="filled", color= "green",shape="square"label="*3*\n' +
+            'let c = 0;"]\n' +
+            'n3 [style="filled", color= "green",shape="diamond"label="*4*\n' +
+            'b < z"]\n' +
+            'n4 [shape="square"label="*5*\n' +
+            'c = c + 5"]\n' +
+            'n5 [style="filled", color= "green",shape="square"label="*6*\n' +
+            'return c;"]\n' +
+            'n6 [style="filled", color= "green",shape="diamond"label="*7*\n' +
+            'b < z * 2"]\n' +
+            'n7 [style="filled", color= "green",shape="square"label="*8*\n' +
+            'c = c + x + 5"]\n' +
+            'n8 [shape="square"label="*9*\n' +
+            'c = c + z + 5"]\n' +
+            'n0 -> n1 []\n' +
+            'n1 -> n2 []\n' +
+            'n2 -> n3 []\n' +
+            'n3 -> n4 [label="T"]\n' +
+            'n3 -> n6 [label="F"]\n' +
+            'n4 -> n5 []\n' +
+            'n6 -> n7 [label="T"]\n' +
+            'n6 -> n8 [label="F"]\n' +
+            'n7 -> n5 []\n' +
+            'n8 -> n5 []\n' +
+            '}'
+        );
+    });
+
+    it('is parsing an empty function correctly', () => {
+        assert.equal(genreateGraphDotFromInput('function foo(x, y, z){\n' +
+            '   let a = x + 1;\n' +
+            '   let b = a + y;\n' +
+            '   let c = 0;\n' +
+            '   \n' +
+            '   while (a < z) {\n' +
+            '       c = a + b;\n' +
+            '       z = c * 2;\n' +
+            '       a++;\n' +
+            '   }\n' +
+            '   \n' +
+            '   return z;\n' +
+            '}\n',''), 'digraph{n0 [shape="square"label="*1*\n' +
+            'let a = x + 1;"]\n' +
+            'n1 [shape="square"label="*2*\n' +
+            'let b = a + y;"]\n' +
+            'n2 [shape="square"label="*3*\n' +
+            'let c = 0;"]\n' +
+            'n3 [shape="diamond"label="*4*\n' +
+            'a < z"]\n' +
+            'n4 [shape="square"label="*5*\n' +
+            'c = a + b"]\n' +
+            'n5 [shape="square"label="*6*\n' +
+            'z = c * 2"]\n' +
+            'n6 [shape="square"label="*7*\n' +
+            'a++"]\n' +
+            'n7 [shape="square"label="*8*\n' +
+            'return z;"]\n' +
+            'n0 -> n1 []\n' +
+            'n1 -> n2 []\n' +
+            'n2 -> n3 []\n' +
+            'n3 -> n4 [label="T"]\n' +
+            'n3 -> n7 [label="F"]\n' +
+            'n4 -> n5 []\n' +
+            'n5 -> n6 []\n' +
+            'n6 -> n3 []\n' +
+            '}'
+        );
+    });
+
+
+
+    it('is parsing an empty function correctly', () => {
+        assert.equal(genreateGraphDotFromInput('function foo(x, y, z){\n' +
+            '   let a = x + 1;\n' +
+            '   let b = a + y;\n' +
+            '   let c = 0;\n' +
+            '   \n' +
+            '   while (a < z) {\n' +
+            '       c = a + b;\n' +
+            '       z = c * 2;\n' +
+            '       a++;\n' +
+            '   }\n' +
+            '   \n' +
+            '   return z;\n' +
+            '}\n','{x=1;y=2;z=3}'), 'digraph{n0 [style="filled", color= "green",shape="square"label="*1*\n' +
+            'let a = x + 1;"]\n' +
+            'n1 [style="filled", color= "green",shape="square"label="*2*\n' +
+            'let b = a + y;"]\n' +
+            'n2 [style="filled", color= "green",shape="square"label="*3*\n' +
+            'let c = 0;"]\n' +
+            'n3 [style="filled", color= "green",shape="diamond"label="*4*\n' +
+            'a < z"]\n' +
+            'n4 [style="filled", color= "green",shape="square"label="*5*\n' +
+            'c = a + b"]\n' +
+            'n5 [style="filled", color= "green",shape="square"label="*6*\n' +
+            'z = c * 2"]\n' +
+            'n6 [style="filled", color= "green",shape="square"label="*7*\n' +
+            'a++"]\n' +
+            'n7 [style="filled", color= "green",shape="square"label="*8*\n' +
+            'return z;"]\n' +
+            'n0 -> n1 []\n' +
+            'n1 -> n2 []\n' +
+            'n2 -> n3 []\n' +
+            'n3 -> n4 [label="T"]\n' +
+            'n3 -> n7 [label="F"]\n' +
+            'n4 -> n5 []\n' +
+            'n5 -> n6 []\n' +
+            'n6 -> n3 []\n' +
+            '}'
+        );
+    });
+
+
+
+
+
+
     it('is parsing an empty function correctly', () => {
         assert.equal(escodegen.generate(subCode('function test(x){\n' +
                 'let c=x+5;\n' +
